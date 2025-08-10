@@ -82,6 +82,28 @@
 
     .toast{position:fixed; inset:auto 0 14px 0; margin:auto; width:min(520px,92vw); background:#111827; color:#fff; border-radius:14px; padding:10px 14px; display:none}
     .toast.show{display:block}
+
+    /* Dado animado y carta con bounce */
+    .die{will-change: transform}
+    .die.rolling{animation: dieSpin .3s ease-in-out}
+    @keyframes dieSpin{0%{transform:rotate(0) scale(1)}50%{transform:rotate(200deg) scale(1.15)}100%{transform:rotate(360deg) scale(1)}}
+
+    .flip.show .back{box-shadow:0 18px 30px rgba(17,24,39,.15),0 6px 12px rgba(17,24,39,.08)}
+    .back.pop{animation:cardPop .5s cubic-bezier(.2,.8,.2,1)}
+    @keyframes cardPop{0%{transform:rotateY(180deg) scale(.96) translateY(2px)}60%{transform:rotateY(180deg) scale(1.04) translateY(-1px)}100%{transform:rotateY(180deg) scale(1) translateY(0)}}
+
+    /* Confetti */
+    .confetti{position:fixed; top:-12px; left:0; width:10px; height:14px; background:var(--c,#FDE047); opacity:.95; border-radius:2px; transform: translate3d(var(--x,0), -10px,0) rotate(var(--r,0deg)); pointer-events:none; box-shadow:0 2px 6px rgba(17,24,39,.15); animation: confetti-fall var(--dur,3s) linear forwards}
+    @keyframes confetti-fall{to{ transform: translate3d(var(--xend,0), 110vh,0) rotate(var(--rend,720deg)); }}
+
+    /* Trail sutil para fichas */
+    .trails{position:absolute; inset:12px; pointer-events:none; z-index:4}
+    .trail{position:absolute; width:16px; height:16px; border-radius:50%; transform:translate(-50%,-50%) scale(1); opacity:.65; filter:blur(.4px); animation:trailFade .9s ease-out forwards; mix-blend-mode:multiply}
+    .trail.p1{background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(124,58,237,.45) 60%, rgba(124,58,237,0) 70%)}
+    .trail.p2{background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(6,182,212,.45) 60%, rgba(6,182,212,0) 70%)}
+    .trail.p3{background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(245,158,11,.45) 60%, rgba(245,158,11,0) 70%)}
+    .trail.p4{background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(239,68,68,.45) 60%, rgba(239,68,68,0) 70%)}
+    @keyframes trailFade{0%{opacity:.6; transform:translate(-50%,-50%) scale(1)}80%{opacity:.15}100%{opacity:0; transform:translate(-50%,-50%) scale(1.6)}}
   </style>
 </head>
 <body>
@@ -161,6 +183,7 @@
   const toast = document.getElementById('toast');
   const playersEl = document.getElementById('players');
   const flip = document.getElementById('flip');
+  let trailsEl; // capa para rastros
   const cardBack  = document.getElementById('cardBack');
   const speedSel = document.getElementById('speed');
 
@@ -181,6 +204,29 @@
     card(){ tone(440,0.1,'square',0.05); },
     goal(){ tone(740,0.12,'sine',0.06); setTimeout(()=>tone(980,0.12,'sine',0.06),130); }
   };
+
+  // Confetti burst (DOM-based, respeta reduced motion)
+  function confettiBurst(count=120, dur=2800){
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) count = Math.min(30, count);
+    const colors = ['#FDE047','#F472B6','#60A5FA','#34D399','#A78BFA','#FB7185'];
+    for (let i=0;i<count;i++){
+      const d = document.createElement('div'); d.className='confetti';
+      const x = Math.random()*window.innerWidth;
+      const xend = x + (Math.random()*160 - 80);
+      const r = Math.floor(Math.random()*360) + 'deg';
+      const rend = (360 + Math.floor(Math.random()*720)) + 'deg';
+      const durS = (dur * (0.7 + Math.random()*0.6)) / 1000;
+      d.style.setProperty('--x', x+'px');
+      d.style.setProperty('--xend', xend+'px');
+      d.style.setProperty('--r', r);
+      d.style.setProperty('--rend', rend);
+      d.style.setProperty('--dur', durS+'s');
+      d.style.setProperty('--c', colors[i%colors.length]);
+      document.body.appendChild(d);
+      setTimeout(()=> d.remove(), durS*1000);
+    }
+  }
 
   // --- Configuración del tablero ---
   // 64 casillas, 8x8. Numeración en zig-zag (serpentina), como Leela.
@@ -294,7 +340,20 @@
   function log(line){ const p = document.createElement('p'); p.textContent = line; logEl.prepend(p); }
   function rand(n){ return Math.floor(Math.random()*n) }
 
-  // Velocidades (restaurado)
+  // Trail sutil
+  function dropTrail(playerIdx){
+    if (!trailsEl) return;
+    const tok = tokensEl.children[playerIdx];
+    if (!tok) return;
+    const d = document.createElement('div');
+    d.className = 'trail ' + (players[playerIdx].css || '');
+    d.style.top = tok.style.top;
+    d.style.left = tok.style.left;
+    trailsEl.appendChild(d);
+    setTimeout(()=> d.remove(), 1000);
+  }
+
+  // Velocidades
   const SPEEDS = { rapido: 90, normal: 170, drama: 320 };
   function currentDelay(){ return SPEEDS[speedSel?.value || 'normal'] || 170; }
 
@@ -304,6 +363,7 @@
     const tok = tokensEl.children[playerIdx];
     const doStep = () => {
       if (remaining<=0){ cb && cb(); return; }
+      dropTrail(playerIdx);
       const next = players[playerIdx].pos + dir;
       if (next<1){ players[playerIdx].pos=1; remaining=0; cb&&cb(); return; }
       if (next>CELLS){ players[playerIdx].pos = CELLS; remaining=0; placeTokenFor(players[playerIdx].pos, tok); cb&&cb(); return; }
@@ -317,7 +377,13 @@
   function nextGood(from){ for (let i=from+1; i<=CELLS; i++) if (effects[i]?.type==='good') return i; return from; }
   function prevBad(from){ for (let i=from-1; i>=1; i--) if (effects[i]?.type==='bad') return i; return from; }
 
-  function showCard(msg){ cardBack.textContent = msg; flip.classList.add('show'); setTimeout(()=> flip.classList.remove('show'), 4300); }
+  function showCard(msg){
+    cardBack.textContent = msg;
+    flip.classList.add('show');
+    cardBack.classList.add('pop');
+    setTimeout(()=> cardBack.classList.remove('pop'), 550);
+    setTimeout(()=> flip.classList.remove('show'), 4300);
+  }
 
   function drawCard(pidx){
     cardCount++; sfx.card();
@@ -355,7 +421,7 @@
   function landed(pidx){
     const P = players[pidx];
     if (P.pos === CELLS){
-      sfx.goal();
+      sfx.goal(); confettiBurst(160, 3000);
       toastMsg(`🏁 ${P.name} llegó a la Paz`);
       log(`✨ ${P.name} cruzó la meta: "Recuerdo de la Paz".`);
       P.finished = true;
@@ -391,11 +457,22 @@
     if (!p){ toastMsg('Agrega al menos 1 jugador'); return; }
     if (p.finished){ nextTurn(); return; }
     if (p.skipTurn){ toastMsg(`⏳ ${p.name} salta este turno`); p.skipTurn=false; nextTurn(); return; }
-    const n = 1 + rand(6); sfx.roll();
-    dieEl.textContent = n; if (increment) throws++;
-    log(`🎲 (${p.name}) Tirada: ${n}`);
-    moveSteps(turn, n, () => { landed(turn); nextTurn(); });
-    updatePlayersUI();
+
+    // Animación del dado antes de mostrar el número
+    rollBtn.disabled = true;
+    dieEl.classList.add('rolling');
+    dieEl.textContent = '';
+    sfx.roll();
+    const n = 1 + rand(6);
+
+    setTimeout(()=>{
+      dieEl.classList.remove('rolling');
+      dieEl.textContent = n;
+      if (increment) throws++;
+      log(`🎲 (${p.name}) Tirada: ${n}`);
+      moveSteps(turn, n, () => { landed(turn); nextTurn(); rollBtn.disabled = false; });
+      updatePlayersUI();
+    }, 300);
   }
 
   function nextTurn(){
@@ -488,13 +565,56 @@
   }
   function removePlayer(){ players.pop(); buildPlayersUI(); if (turn>=players.length) turn=0; posBadge.textContent = `Turno: ${players[turn]?.name || '—'}`; }
 
+  // --- Auto tests (sanity checks) ---
+  function runSelfTests(){
+    const results = [];
+    const T = (name, cond) => { results.push({name, pass:!!cond}); return !!cond; };
+    try{
+      // DOM basics
+      T('DOM: grid/tokens/players/flip/cardBack/speedSel existen', !!gridEl && !!tokensEl && !!playersEl && !!flip && !!cardBack && !!speedSel);
+      // Tablero
+      T('Tablero con 64 celdas', document.querySelectorAll('.grid .cell').length === 64);
+      // Efectos dentro de rango
+      T('Efectos dentro de 1..64', Object.entries(effects).every(([k,v])=>{ const i=+k; return i>=1 && i<=64 && (!v.to || (v.to>=1 && v.to<=64)); }));
+      // Mapeos clave
+      T('Efecto 3 -> 10 (good)', effects[3]?.to === 10 && effects[3]?.type==='good');
+      T('Efecto 8 -> 2 (bad)', effects[8]?.to === 2 && effects[8]?.type==='bad');
+      // Velocidades
+      T('Velocidades definidas (rápido/normal/drama)', typeof SPEEDS.rapido==='number' && typeof SPEEDS.normal==='number' && typeof SPEEDS.drama==='number');
+      // Tokens vs jugadores
+      T('Tokens === jugadores', tokensEl.children.length === players.length);
+      // Helpers
+      const ng = nextGood(1); const pb = prevBad(64);
+      T('nextGood y prevBad retornan dentro de rango', ng>=1 && ng<=64 && pb>=1 && pb<=64);
+      // Celdas incluyen 1..64 únicas
+      const indices = [...document.querySelectorAll('.grid .cell')].map(c=>+c.dataset.index);
+      T('Celdas incluyen 1 y 64', indices.includes(1) && indices.includes(64));
+      T('64 celdas únicas', new Set(indices).size===64);
+      // Labels clave
+      T('Label meta (64) correcto', labelFor(64).includes('Recuerdo'));
+      // Helpers específicos
+      T('nextGood(1) === 3', nextGood(1)===3);
+      T('prevBad(64) === 53', prevBad(64)===53);
+
+      const ok = results.filter(r=>r.pass).length; const total = results.length;
+      console.log('🧪 Autotests:', results);
+      log(`🧪 Autotests: ${ok}/${total} OK`);
+    }catch(e){
+      console.error('Tests error', e);
+      log('🧪 Tests: error inesperado');
+    }
+  }
+
   // Inicializar
   function init(){
     renderBoard();
+    // Capa de rastros debajo de las fichas
+    if (!trailsEl){ trailsEl = document.createElement('div'); trailsEl.className = 'trails'; trailsEl.id = 'trails'; boardEl.appendChild(trailsEl); }
     if (players.length===0){ addPlayer(); addPlayer(); }
     loadNames();
     buildPlayersUI();
     posBadge.textContent = `Turno: ${players[turn].name}`;
+    runSelfTests();
   }
 
   window.addEventListener('resize', ()=> placeAllTokens());
