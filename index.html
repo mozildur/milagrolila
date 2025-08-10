@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎲 Milagro Lila — Multijugador Deluxe</title>
+  <meta name="description" content="Juego tipo Leela multijugador inspirado en UCDM: Espíritu Santo vs Ego." />
+  <style>
+    :root{
+      --bg:#fbf8ff; --fg:#3a2b53; --muted:#6b5a88; --accent:#7c3aed; --accent-2:#06b6d4;
+      --good:#22c55e; --bad:#ef4444; --tile:#ffffff; --shadow:0 6px 20px rgba(0,0,0,.08)
+    }
+    html,body{height:100%}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif; background:linear-gradient(180deg,var(--bg),#fff); color:var(--fg); display:flex; align-items:center; justify-content:center;}
+    .app{width:min(1200px,98vw); margin:14px; display:grid; grid-template-columns: 1.15fr .85fr; gap:16px}
+    @media (max-width:980px){ .app{grid-template-columns:1fr; grid-auto-rows:auto} }
+
+    /* Board */
+    .board{background: #f5efff; border-radius:24px; box-shadow:var(--shadow); padding:12px; position:relative; overflow:auto; min-height: 420px; max-height: 76vh}
+    .grid{display:grid; grid-template-columns:repeat(8,1fr); grid-auto-rows: minmax(56px, 7.2vw); gap:8px; min-width: 560px}
+    @media (max-width:640px){ .grid{grid-auto-rows:minmax(48px, 14vw); min-width: 520px} }
+    .cell{background:var(--tile); border-radius:14px; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:6px; position:relative; box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    .cell .n{position:absolute; top:6px; left:8px; font-size:.72rem; color:#8b6fb0}
+    .cell .icon{font-size:1.1rem}
+    .cell.good{outline:2px dashed rgba(34,197,94,.55)}
+    .cell.bad{outline:2px dashed rgba(239,68,68,.55)}
+    .cell.card{outline:2px dashed rgba(6,182,212,.55)}
+
+    /* Tokens */
+    .tokens{position:absolute; inset:12px; pointer-events:none}
+    .token{--size:26px; width:var(--size); height:var(--size); border-radius:50%; position:absolute; translate:-50% -50%; display:grid; place-items:center; color:#fff; font-weight:800; box-shadow:0 6px 16px rgba(0,0,0,.25); z-index:5; transition: top .28s cubic-bezier(.22,.61,.36,1), left .28s cubic-bezier(.22,.61,.36,1)}
+    .token span{font-size:.8rem}
+    .token.p1{background:linear-gradient(135deg,#7c3aed,#b388ff)}
+    .token.p2{background:linear-gradient(135deg,#06b6d4,#67e8f9)}
+    .token.p3{background:linear-gradient(135deg,#f59e0b,#fde68a)}
+    .token.p4{background:linear-gradient(135deg,#ef4444,#fda4af)}
+    .stack1{transform:translate(10px,-10px)}
+    .stack2{transform:translate(-10px,10px)}
+
+    /* Side */
+    .side{background:#fff; border-radius:24px; box-shadow:var(--shadow); padding:18px; display:grid; gap:14px}
+    h1{font-size:clamp(1.2rem,1.4rem + .5vw,1.9rem); margin:0}
+    .subtitle{color:var(--muted); margin-top:-4px}
+
+    .legend{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+    .legend span{display:inline-flex; gap:6px; align-items:center; padding:6px 10px; background:#fff; border-radius:999px; box-shadow:0 2px 8px rgba(0,0,0,.06); font-size:.85rem}
+    .sq{width:14px;height:14px; border-radius:4px}
+    .sq.good{background:rgba(34,197,94,.8)}
+    .sq.bad{background:rgba(239,68,68,.8)}
+    .sq.card{background:rgba(6,182,212,.8)}
+
+    .panel{display:grid; gap:10px}
+    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    button{background:var(--accent); color:#fff; border:0; border-radius:14px; padding:12px 16px; font-weight:700; cursor:pointer; box-shadow:0 8px 18px rgba(124,58,237,.35); transition:transform .08s ease}
+    button.secondary{background:#f1ecff; color:#5b46a3; box-shadow:none}
+    button:hover{transform:translateY(-1px)}
+    .die{font-size:1.8rem; width:54px; height:54px; border-radius:12px; display:grid; place-items:center; background:#fff; box-shadow:var(--shadow)}
+    .badge{display:inline-grid; place-items:center; padding:6px 10px; border-radius:999px; background:#f3f0ff; color:#5e47a8; font-weight:700; font-size:.85rem}
+
+    .players{display:grid; gap:8px}
+    .pRow{display:grid; grid-template-columns: auto 1fr auto; gap:8px; align-items:center; background:#faf8ff; padding:8px 10px; border-radius:12px}
+    .pRow .name{font-weight:700}
+    .pRow input{width:100%; padding:6px 8px; border-radius:10px; border:1px solid #e5e0ff; font-weight:700}
+    .pRow .edit{background:#ede9fe; color:#4c1d95; border:0; border-radius:10px; padding:6px 8px; cursor:pointer}
+    .pRow .stat{font-size:.9rem; color:#5e5a6b}
+    .turn{border:2px solid #c4b5fd}
+
+    .stats{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+    .cardView{background:linear-gradient(180deg,#eefaff,#fff); border:2px dashed #9bd9e6; border-radius:16px; padding:12px}
+    /* Flip Card */
+    .flipWrap{perspective:1000px}
+    .flip{position:relative; width:100%; min-height:100px; transform-style:preserve-3d; transition: transform .9s cubic-bezier(.2,.6,.2,1)}
+    .flip.show{transform:rotateY(180deg)}
+    .face{position:absolute; inset:0; backface-visibility:hidden; display:grid; place-items:center; padding:10px}
+    .front{background:#f0f9ff; border:1px dashed #bae6fd; border-radius:12px; color:#075985}
+    .back{background:#fff; border:1px solid #e5e7eb; border-radius:12px; transform:rotateY(180deg)}
+
+    .log{background:#faf8ff; border-radius:14px; padding:12px; height:220px; overflow:auto; font-size:.95rem}
+    .log p{margin:.4rem 0}
+
+    .toast{position:fixed; inset:auto 0 14px 0; margin:auto; width:min(520px,92vw); background:#111827; color:#fff; border-radius:14px; padding:10px 14px; display:none}
+    .toast.show{display:block}
+  </style>
+</head>
+<body>
+  <main class="app" role="application" aria-label="Milagro Lila">
+    <!-- Tablero -->
+    <section class="board" id="board">
+      <div class="grid" id="grid" aria-live="polite"></div>
+      <div class="tokens" id="tokens"></div>
+    </section>
+
+    <!-- Lado derecho -->
+    <aside class="side">
+      <header>
+        <h1>🎲 Milagro Lila</h1>
+        <div class="subtitle">Multijugador · Espíritu Santo vs Ego · inspirado en UCDM</div>
+      </header>
+
+      <div class="legend">
+        <span><i class="sq good"></i> Bendición (avanzas)</span>
+        <span><i class="sq bad"></i> Trampa del Ego (retrocedes)</span>
+        <span><i class="sq card"></i> Carta (mensaje/efecto)</span>
+      </div>
+
+      <section class="panel">
+        <div class="controls">
+          <button id="roll">Lanzar dado</button>
+          <button id="reset" class="secondary">Reiniciar</button>
+          <button id="addP" class="secondary">+ Jugador</button>
+          <button id="remP" class="secondary">– Jugador</button>
+          <div class="die" id="die" aria-live="polite">–</div>
+          <span class="badge" id="posBadge">Turno: —</span>
+          <label class="badge" for="speed" style="cursor:pointer">Velocidad</label>
+          <select id="speed" class="secondary" style="padding:8px 10px; border-radius:10px; border:1px solid #e5e0ff">
+            <option value="drama">Drama</option>
+            <option value="normal" selected>Normal</option>
+            <option value="rapido">Rápido</option>
+          </select>
+        </div>
+          <span class="badge" id="posBadge">Turno: —</span>
+        </div>
+
+        <div class="players" id="players"></div>
+
+        <div class="stats">
+          <div class="cardView flipWrap">
+            <strong>📜 Carta</strong>
+            <div class="flip" id="flip">
+              <div class="face front" id="cardFront">Cae en una casilla azul para revelar una carta.</div>
+              <div class="face back" id="cardBack">—</div>
+            </div>
+          </div>
+          <div class="cardView">
+            <strong>📈 Resumen</strong>
+            <div class="hint" id="meters">Tiradas: 0 · Bendiciones: 0 · Ego: 0 · Cartas: 0</div>
+          </div>
+        </div>
+        <div class="log" id="log" aria-live="polite"></div>
+      </section>
+    </aside>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const gridEl = document.getElementById('grid');
+  const tokensEl = document.getElementById('tokens');
+  const boardEl = document.getElementById('board');
+  const rollBtn = document.getElementById('roll');
+  const resetBtn = document.getElementById('reset');
+  const addPBtn = document.getElementById('addP');
+  const remPBtn = document.getElementById('remP');
+  const dieEl = document.getElementById('die');
+  const logEl = document.getElementById('log');
+  const metersEl = document.getElementById('meters');
+  const posBadge = document.getElementById('posBadge');
+  const toast = document.getElementById('toast');
+  const playersEl = document.getElementById('players');
+  const flip = document.getElementById('flip');
+  const speedSel = document.getElementById('speed');
+  const cardBack  = document.getElementById('cardBack');
+
+  // --- Sonidos (Web Audio) ---
+  let _ac;
+  function tone(freq=440, dur=0.12, type='sine', vol=0.05){
+    try{
+      _ac = _ac || new (window.AudioContext||window.webkitAudioContext)();
+      const o = _ac.createOscillator(); const g = _ac.createGain();
+      o.type = type; o.frequency.value = freq; g.gain.value = vol;
+      o.connect(g).connect(_ac.destination); o.start(); setTimeout(()=>o.stop(), dur*1000);
+    }catch{}
+  }
+  const sfx = {
+    roll(){ tone(520,0.09,'triangle',0.06); },
+    good(){ tone(660,0.12,'sine',0.06); setTimeout(()=>tone(880,0.12,'sine',0.06),120); },
+    bad(){ tone(220,0.14,'sawtooth',0.05); },
+    card(){ tone(440,0.1,'square',0.05); },
+    goal(){ tone(740,0.12,'sine',0.06); setTimeout(()=>tone(980,0.12,'sine',0.06),130); }
+  };
+
+  // --- Configuración del tablero ---
+  // 64 casillas, 8x8. Numeración en zig-zag (serpentina), como Leela.
+  const SIZE = 8; const CELLS = SIZE * SIZE; // 64
+
+  const effects = {
+    3:  {type:'good', to:10, text:'Te aquietas y escuchas: avanzas a la 10.'},
+    6:  {type:'card'},
+    8:  {type:'bad',  to:2,  text:'Te distrajo el pasado: regresas a la 2.'},
+    11: {type:'good', to:18, text:'Aceptas corrección de la mente: subes a la 18.'},
+    14: {type:'card'},
+    15: {type:'bad',  to:7,  text:'Confundiste forma con contenido: vuelves a la 7.'},
+    19: {type:'good', to:24, text:'Perdonas una proyección: avanzas a la 24.'},
+    22: {type:'card'},
+    25: {type:'bad',  to:13, text:'Buscaste afuera la salvación: retrocedes a la 13.'},
+    28: {type:'good', to:34, text:'Un instante santo: subes a la 34.'},
+    30: {type:'card'},
+    33: {type:'bad',  to:21, text:'Especialismo al ataque: vuelves a la 21.'},
+    36: {type:'good', to:43, text:'Elegiste de nuevo: avanzas a la 43.'},
+    40: {type:'card'},
+    44: {type:'bad',  to:29, text:'Culpita sutil: retrocedes a la 29.'},
+    47: {type:'good', to:55, text:'Te unes con un hermano: subes a la 55.'},
+    50: {type:'card'},
+    53: {type:'bad',  to:41, text:'Te tragaste una historia del ego: vuelves a la 41.'},
+    57: {type:'good', to:61, text:'Aceptas la Expiación para ti: avanzas a la 61.'},
+    59: {type:'card'}
+  };
+
+  const labels = { 1:'Inicio: Voluntad de ver', 64:'✨ Recuerdo de la Paz' };
+
+  // Cartas
+  const cartasHS = [
+    {msg:'🕊️ "No necesito hacer nada". (Descansas la mente). Avanza 2.', move:+2},
+    {msg:'🕊️ Pides visión verdadera. Avanza 3.', move:+3},
+    {msg:'🕊️ Recuerdas: solo el amor es real. Avanza 1.', move:+1},
+    {msg:'🕊️ Entregas una creencia. Lanza otra vez.', extraRoll:true},
+    {msg:'🕊️ Sientes gratitud. Avanza hasta la próxima casilla verde.', jumpTo:'nextGood'}
+  ];
+  const cartasEgo = [
+    {msg:'😈 Te envicias con tener razón. Retrocede 2.', move:-2},
+    {msg:'😈 Miedo al futuro. Retrocede 3.', move:-3},
+    {msg:'😈 Comparación tóxica. Quédate 1 turno sin tirar.', skip:true},
+    {msg:'😈 Drama en 4K. Vuelve a la casilla anterior.', move:-1},
+    {msg:'😈 Te distraes con la forma. Retrocede hasta la última casilla roja.', jumpTo:'prevBad'}
+  ];
+
+  // Estado multijugador
+  const maxPlayers = 4;
+  const basePlayers = [
+    {name:'Espíritu', css:'p1'},
+    {name:'Ego', css:'p2'}
+  ];
+  let players = [];
+  let turn = 0; // índice actual
+  let throws = 0, goodCount=0, badCount=0, cardCount=0;
+
+  // Construye grilla serpentina 8x8
+  const cells = [];
+  for (let r=0; r<SIZE; r++){
+    const row = [];
+    for (let c=0; c<SIZE; c++){
+      const idx = r%2===0 ? (r*SIZE + c + 1) : (r*SIZE + (SIZE-1-c) + 1);
+      row.push(idx);
+    }
+    cells.push(row);
+  }
+  const flatOrder = cells.flat();
+
+  function renderBoard(){
+    gridEl.innerHTML = '';
+    for (const idx of flatOrder){
+      const div = document.createElement('div');
+      const eff = effects[idx];
+      div.className = 'cell' + (eff? ' ' + eff.type : '');
+      div.dataset.index = idx;
+      div.innerHTML = `<span class="n">${idx}</span><div class="icon">${labelFor(idx)}</div>`;
+      gridEl.appendChild(div);
+    }
+    placeAllTokens();
+  }
+
+  function labelFor(i){
+    const eff = effects[i];
+    if (labels[i]) return labels[i];
+    if (!eff) return '';
+    if (eff.type==='good') return '🟢';
+    if (eff.type==='bad')  return '🔴';
+    if (eff.type==='card') return '🔷';
+    return '';
+  }
+
+  function placeTokenFor(index, tokenEl){
+    const cell = [...gridEl.children].find(c => +c.dataset.index === index);
+    if (!cell) return;
+    const rect = cell.getBoundingClientRect();
+    const host = gridEl.getBoundingClientRect();
+    const top = rect.top - host.top + rect.height/2 + gridEl.scrollTop;
+    const left = rect.left - host.left + rect.width/2 + gridEl.scrollLeft;
+    tokenEl.style.top = top + 'px';
+    tokenEl.style.left = left + 'px';
+  }
+
+  function placeAllTokens(){
+    tokensEl.querySelectorAll('.token').forEach((t,i)=>{
+      const p = players[i]; if (!p) return; placeTokenFor(p.pos, t);
+    });
+    updatePlayersUI();
+  }
+
+  function toastMsg(t){ toast.textContent = t; toast.classList.add('show'); setTimeout(()=> toast.classList.remove('show'), 2200); }
+  function log(line){ const p = document.createElement('p'); p.textContent = line; logEl.prepend(p); }
+  function rand(n){ return Math.floor(Math.random()*n) }
+
+  // Velocidades
+  const SPEEDS = { rapido: 90, normal: 170, drama: 320 };
+  function currentDelay(){ return SPEEDS[speedSel?.value || 'normal'] || 170; }
+
+  function moveSteps(playerIdx, steps, cb){
+    const dir = steps>=0? 1 : -1;
+    let remaining = Math.abs(steps);
+    const tok = tokensEl.children[playerIdx];
+    const doStep = () => {
+      if (remaining<=0){ cb && cb(); return; }
+      const next = players[playerIdx].pos + dir;
+      if (next<1){ players[playerIdx].pos=1; remaining=0; cb&&cb(); return; }
+      if (next>CELLS){ players[playerIdx].pos = CELLS; remaining=0; placeTokenFor(players[playerIdx].pos, tok); cb&&cb(); return; }
+      players[playerIdx].pos = next; placeTokenFor(players[playerIdx].pos, tok);
+      remaining--;
+      setTimeout(doStep, currentDelay());
+    };
+    doStep();
+  }
+
+  function nextGood(from){ for (let i=from+1; i<=CELLS; i++) if (effects[i]?.type==='good') return i; return from; }
+  function prevBad(from){ for (let i=from-1; i>=1; i--) if (effects[i]?.type==='bad') return i; return from; }
+
+  function showCard(msg){ cardBack.textContent = msg; flip.classList.add('show'); setTimeout(()=> flip.classList.remove('show'), 3200); }
+
+  function drawCard(pidx){
+    cardCount++; sfx.card();
+    const good = Math.random()<0.55;
+    const pool = good ? cartasHS : cartasEgo;
+    const pick = pool[rand(pool.length)];
+    let msg = `[${players[pidx].name}] ${pick.msg}`;
+    const runAfter = [];
+
+    if (pick.move){ runAfter.push(() => moveSteps(pidx, pick.move, () => landed(pidx))); }
+    if (pick.extraRoll){ runAfter.push(() => { toastMsg('Tira otra vez ✨'); roll(false); }); }
+    if (pick.skip){ players[pidx].skipTurn = true; }
+    if (pick.jumpTo==='nextGood'){
+      const to = nextGood(players[pidx].pos);
+      if (to!==players[pidx].pos){ msg += ` Vas a la ${to}.`; runAfter.push(()=> moveTo(pidx, to, () => landed(pidx))); }
+    }
+    if (pick.jumpTo==='prevBad'){
+      const to = prevBad(players[pidx].pos);
+      if (to!==players[pidx].pos){ msg += ` Vuelves a la ${to}.`; runAfter.push(()=> moveTo(pidx, to, () => landed(pidx))); }
+    }
+
+    showCard(pick.msg);
+    // prolongar el drama
+    setTimeout(()=>{}, currentDelay());
+    log(msg);
+
+    if (runAfter.length){
+      const first = runAfter.shift();
+      const chain = () => { const next = runAfter.shift(); if (next) next(); };
+      first();
+      landed._chain = chain;
+    }
+  }
+
+  function moveTo(pidx, target, cb){ const delta = target - players[pidx].pos; moveSteps(pidx, delta, cb); }
+
+  function landed(pidx){
+    const P = players[pidx];
+    if (P.pos === CELLS){
+      sfx.goal();
+      toastMsg(`🏁 ${P.name} llegó a la Paz`);
+      log(`✨ ${P.name} cruzó la meta: "Recuerdo de la Paz".`);
+      P.finished = true;
+      if (players.every(x=>x.finished)) rollBtn.disabled = true;
+      updatePlayersUI();
+      return;
+    }
+
+    const eff = effects[P.pos];
+    if (!eff){ endStep(); return; }
+
+    if (eff.type==='good'){
+      goodCount++; sfx.good(); log(`🟢 (${P.name}) ${eff.text || 'Bendición.'}`);
+      if (eff.to){ moveTo(pidx, eff.to, () => { landed._chain && landed._chain(); landed._chain=null; landed(pidx); }); return; }
+    }
+    if (eff.type==='bad'){
+      badCount++; sfx.bad(); log(`🔴 (${P.name}) ${eff.text || 'Trampa del ego.'}`);
+      if (eff.to){ moveTo(pidx, eff.to, () => { landed._chain && landed._chain(); landed._chain=null; landed(pidx); }); return; }
+    }
+    if (eff.type==='card'){
+      setTimeout(()=> drawCard(pidx), Math.min(currentDelay()+150, 600));
+    }
+
+    function endStep(){
+      metersEl.textContent = `Tiradas: ${throws} · Bendiciones: ${goodCount} · Ego: ${badCount} · Cartas: ${cardCount}`;
+      landed._chain && landed._chain(); landed._chain = null;
+    }
+    endStep();
+  }
+
+  function roll(increment=true){
+    const p = players[turn];
+    if (!p){ toastMsg('Agrega al menos 1 jugador'); return; }
+    if (p.finished){ nextTurn(); return; }
+    if (p.skipTurn){ toastMsg(`⏳ ${p.name} salta este turno`); p.skipTurn=false; nextTurn(); return; }
+    const n = 1 + rand(6); sfx.roll();
+    dieEl.textContent = n; if (increment) throws++;
+    log(`🎲 (${p.name}) Tirada: ${n}`);
+    moveSteps(turn, n, () => { landed(turn); nextTurn(); });
+    updatePlayersUI();
+  }
+
+  function nextTurn(){
+    const N = players.length;
+    if (N===0) return;
+    for (let i=1;i<=N;i++){
+      const cand = (turn + i) % N;
+      if (!players[cand].finished){ turn = cand; break; }
+    }
+    posBadge.textContent = `Turno: ${players[turn].name}`;
+    highlightTurn();
+  }
+
+  function reset(){
+    throws=0; goodCount=0; badCount=0; cardCount=0; dieEl.textContent='–'; logEl.innerHTML='';
+    rollBtn.disabled=false;
+    players.forEach(p=>{ p.pos=1; p.skipTurn=false; p.finished=false; });
+    placeAllTokens(); updatePlayersUI();
+    toastMsg('🔄 Juego reiniciado');
+    metersEl.textContent = `Tiradas: 0 · Bendiciones: 0 · Ego: 0 · Cartas: 0`;
+    posBadge.textContent = `Turno: ${players[turn]?.name || '—'}`;
+  }
+
+  // --- Nombres editables con guardado local ---
+  function saveNames(){
+    const names = players.map(p=>p.name);
+    localStorage.setItem('milagroLila_names', JSON.stringify(names));
+  }
+  function loadNames(){
+    try{
+      const names = JSON.parse(localStorage.getItem('milagroLila_names')||'[]');
+      names.forEach((n,i)=>{ if(players[i] && n) players[i].name = n; });
+    }catch{}
+  }
+
+  function buildPlayersUI(){
+    playersEl.innerHTML=''; tokensEl.innerHTML='';
+    players.forEach((p, i)=>{
+      const row = document.createElement('div'); row.className='pRow'; row.dataset.idx=i;
+
+      const nameBox = document.createElement('div'); nameBox.className='name';
+      const nameSpan = document.createElement('span'); nameSpan.textContent = p.name;
+      const nameInput = document.createElement('input'); nameInput.value = p.name; nameInput.style.display='none';
+      const editBtn = document.createElement('button'); editBtn.className='edit'; editBtn.textContent='✎';
+      const commit = () => {
+        const val = nameInput.value.trim() || `Jugador ${i+1}`;
+        p.name = val; nameSpan.textContent = val;
+        nameInput.style.display='none'; nameSpan.style.display='inline';
+        editBtn.textContent='✎'; saveNames(); updatePlayersUI(); posBadge.textContent = `Turno: ${players[turn]?.name || '—'}`;
+      };
+      editBtn.onclick = () => {
+        const editing = nameInput.style.display !== 'none';
+        if (editing){ commit(); } else {
+          nameInput.style.display='inline'; nameSpan.style.display='none'; editBtn.textContent='✔';
+          nameInput.focus(); nameInput.select();
+        }
+      };
+      nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') commit(); if(e.key==='Escape'){ nameInput.value=p.name; commit(); } });
+      nameBox.appendChild(nameSpan); nameBox.appendChild(nameInput); nameBox.appendChild(editBtn);
+
+      const stat1 = document.createElement('div'); stat1.className='stat'; stat1.innerHTML = `Casilla: <strong>${p.pos}</strong>`;
+      const stat2 = document.createElement('div'); stat2.className='stat'; stat2.textContent = p.finished? '🏁' : (p.skipTurn? '⏳' : '');
+
+      row.appendChild(nameBox); row.appendChild(stat1); row.appendChild(stat2);
+      playersEl.appendChild(row);
+
+      const t = document.createElement('div'); t.className = `token ${p.css} ${i%3===1?'stack1': i%3===2?'stack2':''}`; t.innerHTML = `<span>${i+1}</span>`; tokensEl.appendChild(t);
+    });
+    placeAllTokens();
+    highlightTurn();
+  }
+
+  function highlightTurn(){
+    [...playersEl.children].forEach((r,idx)=>{ r.classList.toggle('turn', idx===turn); });
+  }
+
+  function updatePlayersUI(){
+    [...playersEl.children].forEach((r,idx)=>{
+      const p = players[idx]; if (!p) return;
+      r.querySelector('.stat').innerHTML = `Casilla: <strong>${p.pos}</strong>`;
+      r.children[2].textContent = p.finished? '🏁' : (p.skipTurn? '⏳' : '');
+    });
+  }
+
+  function addPlayer(){
+    if (players.length>=maxPlayers){ toastMsg('Máximo 4 jugadores'); return; }
+    const preset = basePlayers[players.length] || {name:`Jugador ${players.length+1}`, css:`p${players.length+1}`};
+    players.push({ name:preset.name, css:preset.css, pos:1, skipTurn:false, finished:false });
+    buildPlayersUI(); posBadge.textContent = `Turno: ${players[turn]?.name || '—'}`;
+  }
+  function removePlayer(){ players.pop(); buildPlayersUI(); if (turn>=players.length) turn=0; posBadge.textContent = `Turno: ${players[turn]?.name || '—'}`; }
+
+  // Inicializar
+  function init(){
+    renderBoard();
+    if (players.length===0){ addPlayer(); addPlayer(); }
+    loadNames();
+    buildPlayersUI();
+    posBadge.textContent = `Turno: ${players[turn].name}`;
+  }
+
+  window.addEventListener('resize', ()=> placeAllTokens());
+  boardEl.addEventListener('scroll', ()=> placeAllTokens());
+  rollBtn.addEventListener('click', ()=> roll(true));
+  resetBtn.addEventListener('click', reset);
+  addPBtn.addEventListener('click', addPlayer);
+  remPBtn.addEventListener('click', removePlayer);
+
+  init();
+  // Ajuste dinámico por velocidad
+  speedSel?.addEventListener('change', ()=>{
+    toastMsg(`Velocidad: ${speedSel.value}`);
+  });
+})();
+</script>
+</body>
+</html>
