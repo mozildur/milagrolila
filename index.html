@@ -78,6 +78,8 @@
     .log{background:#faf8ff; border-radius:14px; padding:12px; height:220px; overflow:auto; font-size:.95rem}
     .log p{margin:.4rem 0}
 
+    .credits{font-size:.85rem; color:#6b5a88; text-align:center; opacity:.9}
+
     .toast{position:fixed; inset:auto 0 14px 0; margin:auto; width:min(520px,92vw); background:#111827; color:#fff; border-radius:14px; padding:10px 14px; display:none}
     .toast.show{display:block}
   </style>
@@ -118,8 +120,6 @@
             <option value="rapido">Rápido</option>
           </select>
         </div>
-          <span class="badge" id="posBadge">Turno: —</span>
-        </div>
 
         <div class="players" id="players"></div>
 
@@ -137,6 +137,8 @@
           </div>
         </div>
         <div class="log" id="log" aria-live="polite"></div>
+
+        <div class="credits">Milagro Lila por <strong>MoZ</strong> · Inspirado en UCDM · Código adaptado con IA</div>
       </section>
     </aside>
   </main>
@@ -159,8 +161,8 @@
   const toast = document.getElementById('toast');
   const playersEl = document.getElementById('players');
   const flip = document.getElementById('flip');
-  const speedSel = document.getElementById('speed');
   const cardBack  = document.getElementById('cardBack');
+  const speedSel = document.getElementById('speed');
 
   // --- Sonidos (Web Audio) ---
   let _ac;
@@ -292,7 +294,7 @@
   function log(line){ const p = document.createElement('p'); p.textContent = line; logEl.prepend(p); }
   function rand(n){ return Math.floor(Math.random()*n) }
 
-  // Velocidades
+  // Velocidades (restaurado)
   const SPEEDS = { rapido: 90, normal: 170, drama: 320 };
   function currentDelay(){ return SPEEDS[speedSel?.value || 'normal'] || 170; }
 
@@ -315,7 +317,7 @@
   function nextGood(from){ for (let i=from+1; i<=CELLS; i++) if (effects[i]?.type==='good') return i; return from; }
   function prevBad(from){ for (let i=from-1; i>=1; i--) if (effects[i]?.type==='bad') return i; return from; }
 
-  function showCard(msg){ cardBack.textContent = msg; flip.classList.add('show'); setTimeout(()=> flip.classList.remove('show'), 3200); }
+  function showCard(msg){ cardBack.textContent = msg; flip.classList.add('show'); setTimeout(()=> flip.classList.remove('show'), 4300); }
 
   function drawCard(pidx){
     cardCount++; sfx.card();
@@ -338,8 +340,6 @@
     }
 
     showCard(pick.msg);
-    // prolongar el drama
-    setTimeout(()=>{}, currentDelay());
     log(msg);
 
     if (runAfter.length){
@@ -503,12 +503,9 @@
   resetBtn.addEventListener('click', reset);
   addPBtn.addEventListener('click', addPlayer);
   remPBtn.addEventListener('click', removePlayer);
+  speedSel?.addEventListener('change', ()=>{ toastMsg(`Velocidad: ${speedSel.value}`); });
 
   init();
-  // Ajuste dinámico por velocidad
-  speedSel?.addEventListener('change', ()=>{
-    toastMsg(`Velocidad: ${speedSel.value}`);
-  });
 })();
 </script>
 </body>
