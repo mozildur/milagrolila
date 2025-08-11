@@ -8,20 +8,30 @@
   <style>
     :root{
       --bg:#fbf8ff; --fg:#3a2b53; --muted:#6b5a88; --accent:#7c3aed; --accent-2:#06b6d4;
-      --good:#22c55e; --bad:#ef4444; --tile:#ffffff; --shadow:0 6px 20px rgba(0,0,0,.08)
+      --good:#22c55e; --bad:#ef4444; --tile:#ffffff; --shadow:0 6px 20px rgba(0,0,0,.08);
+      --cols: 8;                 /* columnas del tablero */
+      --gap: 8px;                /* separación entre celdas */
+      --cell: 72px;              /* tamaño por defecto (JS lo ajusta) */
     }
+
     html,body{height:100%}
     body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif; background:linear-gradient(180deg,var(--bg),#fff); color:var(--fg); display:flex; align-items:center; justify-content:center;}
+
     .app{width:min(1200px,98vw); margin:14px; display:grid; grid-template-columns: 1.15fr .85fr; gap:16px}
     @media (max-width:980px){ .app{grid-template-columns:1fr; grid-auto-rows:auto} }
 
     /* Board */
-    .board{background: #f5efff; border-radius:24px; box-shadow:var(--shadow); padding:12px; position:relative; overflow:auto; min-height: 420px; max-height: 76vh}
-    .grid{display:grid; grid-template-columns:repeat(8,1fr); grid-auto-rows: minmax(56px, 7.2vw); gap:8px; min-width: 560px}
-    @media (max-width:640px){ .grid{grid-auto-rows:minmax(48px, 14vw); min-width: 520px} }
+    .board{background:#f5efff; border-radius:24px; box-shadow:var(--shadow); padding:12px; position:relative; overflow:auto; min-height: 420px; max-height: 76vh}
+    /*
+      Tablero responsive con celdas CUADRADAS:
+      - JS calcula --cell para que quepan 8 columnas en el ancho disponible.
+      - Sin min-width forzada, así no se rompe en móviles.
+    */
+    .grid{display:grid; grid-template-columns:repeat(var(--cols), var(--cell)); grid-auto-rows:var(--cell); gap:var(--gap)}
+
     .cell{background:var(--tile); border-radius:14px; display:flex; flex-direction:column; justify-content:center; align-items:center; padding:6px; position:relative; box-shadow:0 2px 8px rgba(0,0,0,.06)}
     .cell .n{position:absolute; top:6px; left:8px; font-size:.72rem; color:#8b6fb0}
-    .cell .icon{font-size:1.1rem}
+    .cell .icon{font-size:clamp(.9rem, .8rem + .3vw, 1.1rem)}
     .cell.good{outline:2px dashed rgba(34,197,94,.55)}
     .cell.bad{outline:2px dashed rgba(239,68,68,.55)}
     .cell.card{outline:2px dashed rgba(6,182,212,.55)}
@@ -66,6 +76,8 @@
     .turn{border:2px solid #c4b5fd}
 
     .stats{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+    @media (max-width:540px){ .stats{grid-template-columns:1fr} }
+
     .cardView{background:linear-gradient(180deg,#eefaff,#fff); border:2px dashed #9bd9e6; border-radius:16px; padding:12px}
     /* Flip Card */
     .flipWrap{perspective:1000px}
@@ -187,6 +199,20 @@
   const cardBack  = document.getElementById('cardBack');
   const speedSel = document.getElementById('speed');
 
+  // ====== Ajuste RESPONSIVE del tablero (cel/tablet/desktop) ======
+  const GAP = 8;            // debe coincidir con --gap
+  const COLS = 8;           // debe coincidir con --cols
+  function resizeGridCell(){
+    // ancho disponible dentro del .board (restando padding ~12*2)
+    const pad = 24; // px
+    const available = Math.max(180, boardEl.clientWidth - pad); // piso para casos extremos
+    const cell = Math.floor((available - GAP * (COLS - 1)) / COLS);
+    const clamped = Math.max(38, Math.min(cell, 120)); // límites razonables
+    gridEl.style.setProperty('--cell', clamped + 'px');
+    // Reubicar fichas tras el cambio de layout
+    placeAllTokens();
+  }
+
   // --- Sonidos (Web Audio) ---
   let _ac;
   function tone(freq=440, dur=0.12, type='sine', vol=0.05){
@@ -306,6 +332,7 @@
       gridEl.appendChild(div);
     }
     placeAllTokens();
+    resizeGridCell(); // asegura ajuste inicial
   }
 
   function labelFor(i){
@@ -617,8 +644,12 @@
     runSelfTests();
   }
 
-  window.addEventListener('resize', ()=> placeAllTokens());
+  // Reajuste en eventos de layout
+  window.addEventListener('resize', ()=>{ resizeGridCell(); placeAllTokens(); });
   boardEl.addEventListener('scroll', ()=> placeAllTokens());
+  // iOS Safari: cuando aparece teclado/oculta barras, usar resize + timeout suave
+  window.addEventListener('orientationchange', ()=> setTimeout(resizeGridCell, 200));
+
   rollBtn.addEventListener('click', ()=> roll(true));
   resetBtn.addEventListener('click', reset);
   addPBtn.addEventListener('click', addPlayer);
